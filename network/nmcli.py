@@ -460,6 +460,8 @@ class Nmcli(object):
         self.maxage=module.params['maxage']
         self.ageingtime=module.params['ageingtime']
         self.mac=module.params['mac']
+        self.path_cost=module.params['path_cost']
+        self.hairpin=module.params['hairpin']
         self.vlanid=module.params['vlanid']
         self.vlandev=module.params['vlandev']
         self.flags=module.params['flags']
@@ -860,11 +862,126 @@ class Nmcli(object):
     def create_connection_bridge(self):
         cmd=[self.module.get_bin_path('nmcli', True)]
         # format for creating bridge interface
+        cmd.append('connection')
+        cmd.append('add')
+        cmd.append('type')
+        cmd.append('bridge')
+        cmd.append('con-name')
+        if self.conn_name is not None:
+            cmd.append(self.conn_name)
+        elif self.ifname is not None:
+            cmd.append(self.ifname)
+        cmd.append('ifname')
+        if self.ifname is not None:
+            cmd.append(self.ifname)
+        elif self.conn_name is not None:
+            cmd.append(self.conn_name)
+        if self.autoconnect is not None:
+            cmd.append('autoconnect')
+            cmd.append(self.autoconnect)
+        if self.stp is not None:
+            cmd.append('stp')
+            cmd.append(self.stp)
+        if self.priority is not None:
+            cmd.append('priority')
+            cmd.append(self.priority)
+        if self.forwarddelay is not None:
+            cmd.append('forward-delay')
+            cmd.append(self.forwarddelay)
+        if self.hellotime is not None:
+            cmd.append('hello-time')
+            cmd.append(self.hellotime)
+        if self.maxage is not None:
+            cmd.append('max-age')
+            cmd.append(self.maxage)
+        if self.ageingtime is not None:
+            cmd.append('ageing-time')
+            cmd.append(self.ageingtime)
+        if self.mac is not None:
+            cmd.append('mac')
+            cmd.append(self.mac)
+        if self.ip4 is not None:
+            cmd.append('ip4')
+            cmd.append(self.ip4)
+        if self.gw4 is not None:
+            cmd.append('gw4')
+            cmd.append(self.gw4)
+        if self.ip6 is not None:
+            cmd.append('ip6')
+            cmd.append(self.ip6)
+        if self.gw6 is not None:
+            cmd.append('gw6')
+            cmd.append(self.gw6)
         return cmd
 
     def modify_connection_bridge(self):
         cmd=[self.module.get_bin_path('nmcli', True)]
         # format for modifying bridge interface
+        cmd.append('connection')
+        cmd.append('modify')
+        cmd.append(self.conn_name)
+        if self.ip4 is not None:
+            cmd.append('ipv4.address')
+            cmd.append(self.ip4)
+        if self.gw4 is not None:
+            cmd.append('ipv4.gateway')
+            cmd.append(self.gw4)
+        if self.dns4 is not None:
+            cmd.append('ipv4.dns')
+            cmd.append(self.dns4)
+        if self.ip6 is not None:
+            cmd.append('ipv6.address')
+            cmd.append(self.ip6)
+        if self.gw6 is not None:
+            cmd.append('ipv6.gateway')
+            cmd.append(self.gw4)
+        if self.dns6 is not None:
+            cmd.append('ipv6.dns')
+            cmd.append(self.dns6)
+        if self.autoconnect is not None:
+            cmd.append('autoconnect')
+            cmd.append(self.autoconnect)
+        return cmd
+
+    def create_connection_bridge_slave(self):
+        cmd=[self.module.get_bin_path('nmcli', True)]
+        # format for creating bridge-slave interface
+        cmd.append('connection')
+        cmd.append('add')
+        cmd.append('type')
+        cmd.append('bridge-slave')
+        cmd.append('con-name')
+        if self.conn_name is not None:
+            cmd.append(self.conn_name)
+        elif self.ifname is not None:
+            cmd.append(self.ifname)
+        cmd.append('ifname')
+        if self.ifname is not None:
+            cmd.append(self.ifname)
+        elif self.conn_name is not None:
+            cmd.append(self.conn_name)
+        cmd.append('master')
+        if self.conn_name is not None:
+            cmd.append(self.master)
+        if self.slavepriority is not None:
+            cmd.append('priority')
+            cmd.append(self.slavepriority)
+        if self.path_cost is not None:
+            cmd.append('path-cost')
+            cmd.append(self.path_cost)
+        if self.hairpin is not None:
+            cmd.append('hairpin')
+            cmd.append(self.hairpin)
+        return cmd
+
+    def modify_connection_bridge_slave(self):
+        cmd=[self.module.get_bin_path('nmcli', True)]
+        # format for modifying bridge-slave interface
+        cmd.append('connection')
+        cmd.append('modify')
+        cmd.append(self.conn_name)
+        cmd.append('connection.master')
+        cmd.append(self.master)
         return cmd
 
     def create_connection_vlan(self):
@@ -927,7 +1044,18 @@ class Nmcli(object):
                 cmd=self.create_connection_ethernet()
                 return self.execute_command(cmd)
         elif self.type=='bridge':
-            cmd=self.create_connection_bridge()
+            if (self.mtu is not None) or (self.dns4 is not None) or (self.dns6 is not None):
+                cmd=self.create_connection_bridge()
+                self.execute_command(cmd)
+                cmd=self.modify_connection_bridge()
+                self.execute_command(cmd)
+                cmd=self.up_connection()
+                return self.execute_command(cmd)
+            else:
+                cmd=self.create_connection_bridge()
+                return self.execute_command(cmd)
+        elif self.type=='bridge-slave':
+            cmd=self.create_connection_bridge_slave()
         elif self.type=='vlan':
             cmd=self.create_connection_vlan()
         return self.execute_command(cmd)
@@ -954,6 +1082,8 @@ class Nmcli(object):
             cmd=self.modify_connection_ethernet()
         elif self.type=='bridge':
             cmd=self.modify_connection_bridge()
+        elif self.type=='bridge-slave':
+            cmd=self.modify_connection_bridge_slave()
         elif self.type=='vlan':
             cmd=self.modify_connection_vlan()
         return self.execute_command(cmd)
@@ -968,7 +1098,7 @@ def main():
             conn_name=dict(required=True, type='str'),
             master=dict(required=False, default=None, type='str'),
             ifname=dict(required=False, default=None, type='str'),
-            type=dict(required=False, default=None, choices=['ethernet', 'team', 'team-slave', 'bond', 'bond-slave', 'bridge', 'vlan'], type='str'),
+            type=dict(required=False, default=None, choices=['ethernet', 'team', 'team-slave', 'bond', 'bond-slave', 'bridge', 'bridge-slave', 'vlan'], type='str'),
             ip4=dict(required=False, default=None, type='str'),
             gw4=dict(required=False, default=None, type='str'),
             dns4=dict(required=False, default=None, type='str'),
@@ -993,6 +1123,8 @@ def main():
             hellotime=dict(required=False, default="2", type='str'),
             maxage=dict(required=False, default="20", type='str'),
             ageingtime=dict(required=False, default="300", type='str'),
+            path_cost=dict(required=False, default="100", type='str'),
+            hairpin=dict(required=False, default='yes', choices=['yes', 'no'], type='str'),
             # vlan specific vars
             vlanid=dict(required=False, default=None, type='str'),
             vlandev=dict(required=False, default=None, type='str'),
